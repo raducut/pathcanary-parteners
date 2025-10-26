@@ -1,0 +1,2 @@
+# pathcanary-parteners
+Partener Repo
