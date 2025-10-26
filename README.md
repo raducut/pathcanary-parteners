@@ -47,6 +47,7 @@ PathCanary is a 24/7 revenue funnel monitoring platform that uses synthetic brow
 
 ### Testing
 - [Partner SDK](./sdk/) - TypeScript SDK for testing your integration
+- [SDK Installation Guide](./sdk/INSTALLATION.md) - Install SDK from GitHub
 - [Test Suite](./tests/) - Automated integration tests
 - [Testing Guide](./docs/TESTING_GUIDE.md) - Complete testing documentation
 
@@ -74,11 +75,14 @@ Your webhook must:
 Use our Partner SDK to validate your implementation:
 
 \`\`\`bash
-npm install @pathcanary/partner-sdk
+# Install SDK from GitHub
+npm install raducut/pathcanary-parteners#main
 
-# Run integration tests
-npm test
+# Create test file (see SDK Installation Guide)
+npx ts-node test.ts
 \`\`\`
+
+📖 **[Complete SDK Installation Guide](./sdk/INSTALLATION.md)** - Step-by-step instructions with examples
 
 ### 5. Go Live
 Once testing is complete:

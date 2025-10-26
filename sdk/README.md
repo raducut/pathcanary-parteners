@@ -4,9 +4,13 @@ TypeScript SDK for testing and validating your PathCanary feature flag integrati
 
 ## Installation
 
+**Install directly from GitHub:**
+
 ```bash
-npm install @pathcanary/partner-sdk
+npm install raducut/pathcanary-parteners#main
 ```
+
+📖 **[Complete Installation Guide](./INSTALLATION.md)** - Detailed instructions, examples, and troubleshooting
 
 ## Usage
 
