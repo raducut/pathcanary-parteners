@@ -1,0 +1,381 @@
+openapi: 3.0.3
+info:
+  title: PathCanary Partner Webhook API
+  description: |
+    API specification for feature flag providers integrating with PathCanary's
+    Assisted Rollback system.
+
+    ## Overview
+    PathCanary sends webhook requests to your API endpoint when a critical
+    incident is detected and a feature flag needs to be disabled as part of
+    automated rollback.
+
+    ## Authentication
+    All requests include an `Authorization` header with a Bearer token:
+    ```
+    Authorization: Bearer YOUR_API_KEY
+    ```
+
+    ## Response Time
+    Your endpoint must respond within 5 seconds (recommended: < 2 seconds).
+
+    ## Idempotency
+    Your endpoint should handle duplicate requests gracefully. PathCanary may
+    retry failed requests up to 3 times with exponential backoff.
+
+    ## Support
+    - Email: partners@pathcanary.com
+    - Documentation: https://docs.pathcanary.com/partners
+    - Slack: #pathcanary-partners
+
+  version: 1.0.0
+  contact:
+    name: PathCanary Partner Team
+    email: partners@pathcanary.com
+    url: https://pathcanary.com/partners
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.yourcompany.com
+    description: Production server
+  - url: https://staging-api.yourcompany.com
+    description: Staging server
+  - url: http://localhost:3002
+    description: Local development
+
+tags:
+  - name: Webhook
+    description: PathCanary webhook endpoints
+  - name: Testing
+    description: Endpoints for testing integration
+
+paths:
+  /webhook/pathcanary:
+    post:
+      summary: Toggle Feature Flag
+      description: |
+        Called by PathCanary when a critical incident requires a feature flag
+        to be disabled (or re-enabled).
+
+        **Important**: This endpoint must:
+        1. Validate the API key
+        2. Toggle the specified feature flag
+        3. Return the previous and new state
+        4. Complete within 5 seconds
+        5. Handle duplicate requests gracefully
+
+      operationId: toggleFeatureFlag
+      tags:
+        - Webhook
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-PathCanary-Request-ID
+          in: header
+          description: Unique request identifier for tracing
+          required: false
+          schema:
+            type: string
+            example: pc_1730000000_abc123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RollbackRequest'
+            examples:
+              disableFlag:
+                summary: Disable feature flag
+                value:
+                  flag_key: new-checkout-flow
+                  enabled: false
+                  incident_id: inc_abc123def456
+                  incident_message: 'Critical incident: Checkout completion rate dropped by 85%'
+                  source: pathcanary
+                  metadata:
+                    organization_id: org_xyz789
+                    funnel_id: funnel_checkout_001
+                    severity: critical
+                    timestamp: '2025-10-26T14:32:00.000Z'
+              enableFlag:
+                summary: Re-enable feature flag
+                value:
+                  flag_key: new-checkout-flow
+                  enabled: true
+                  incident_id: inc_def789ghi012
+                  incident_message: 'Manual re-enable after incident resolution'
+                  source: pathcanary
+      responses:
+        '200':
+          description: |
+            Request processed successfully. Note: `success: false` is also
+            returned with 200 status if the flag toggle failed (e.g., flag
+            not found).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RollbackResponse'
+              examples:
+                success:
+                  summary: Successful toggle
+                  value:
+                    success: true
+                    flag_key: new-checkout-flow
+                    previous_state: true
+                    new_state: false
+                    provider_metadata:
+                      flag_id: flag_123456
+                      environment: production
+                      updated_at: '2025-10-26T14:32:01.234Z'
+                      duration_ms: 145
+                flagNotFound:
+                  summary: Flag not found
+                  value:
+                    success: false
+                    flag_key: invalid-flag
+                    previous_state: false
+                    new_state: false
+                    error: "Feature flag 'invalid-flag' not found"
+                    provider_metadata:
+                      customer_id: cust_xyz789
+                      environment: production
+        '401':
+          description: Unauthorized - Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Invalid API key
+        '400':
+          description: Bad Request - Invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: 'Missing required field: flag_key'
+        '429':
+          description: Too Many Requests - Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Rate limit exceeded. Please try again in 60 seconds.
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RollbackResponse'
+              example:
+                success: false
+                flag_key: new-checkout-flow
+                previous_state: true
+                new_state: true
+                error: Internal server error. Please contact support.
+                provider_metadata:
+                  request_id: req_1730000000_xyz
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Service temporarily unavailable. Please try again later.
+
+  /health:
+    get:
+      summary: Health Check
+      description: |
+        Returns the health status of your API. This endpoint is used by
+        PathCanary to monitor integration health.
+      operationId: healthCheck
+      tags:
+        - Testing
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  service:
+                    type: string
+                  version:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+                required:
+                  - status
+              example:
+                status: healthy
+                service: Custom Feature Flag Provider
+                version: 1.0.0
+                timestamp: '2025-10-26T14:32:00.000Z'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API_KEY
+      description: |
+        API key provided by the customer during PathCanary configuration.
+        Format: `Authorization: Bearer YOUR_API_KEY`
+
+  schemas:
+    RollbackRequest:
+      type: object
+      required:
+        - flag_key
+        - enabled
+        - incident_id
+        - incident_message
+        - source
+      properties:
+        flag_key:
+          type: string
+          description: Feature flag identifier
+          example: new-checkout-flow
+        enabled:
+          type: boolean
+          description: |
+            Target state for the flag. For rollback, this is typically `false`.
+            For re-enabling after incident resolution, this is `true`.
+          example: false
+        incident_id:
+          type: string
+          description: PathCanary incident ID that triggered the rollback
+          example: inc_abc123def456
+        incident_message:
+          type: string
+          description: Description of the incident
+          example: 'Critical incident: Checkout completion rate dropped by 85%'
+        source:
+          type: string
+          enum: [pathcanary]
+          description: Source of the request (always 'pathcanary')
+          example: pathcanary
+        metadata:
+          type: object
+          description: Additional context about the incident
+          properties:
+            organization_id:
+              type: string
+              description: PathCanary organization ID
+              example: org_xyz789
+            funnel_id:
+              type: string
+              description: Funnel ID that detected the incident
+              example: funnel_checkout_001
+            severity:
+              type: string
+              enum: [critical, high, medium, low]
+              description: Incident severity
+              example: critical
+            timestamp:
+              type: string
+              format: date-time
+              description: ISO 8601 timestamp of incident detection
+              example: '2025-10-26T14:32:00.000Z'
+
+    RollbackResponse:
+      type: object
+      required:
+        - success
+        - flag_key
+        - previous_state
+        - new_state
+      properties:
+        success:
+          type: boolean
+          description: Whether the flag toggle succeeded
+          example: true
+        flag_key:
+          type: string
+          description: Echo of the flag_key from the request
+          example: new-checkout-flow
+        previous_state:
+          type: boolean
+          description: State of the flag before the toggle
+          example: true
+        new_state:
+          type: boolean
+          description: State of the flag after the toggle
+          example: false
+        error:
+          type: string
+          description: Error message if success is false
+          example: "Feature flag 'invalid-flag' not found"
+        provider_metadata:
+          type: object
+          description: Optional provider-specific metadata
+          additionalProperties: true
+          example:
+            flag_id: flag_123456
+            environment: production
+            updated_at: '2025-10-26T14:32:01.234Z'
+            duration_ms: 145
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: Invalid API key
+        code:
+          type: string
+          description: Error code for programmatic handling
+          example: INVALID_API_KEY
+        request_id:
+          type: string
+          description: Request ID for support inquiries
+          example: req_1730000000_xyz
+
+  examples:
+    successfulToggle:
+      summary: Successful flag toggle
+      value:
+        success: true
+        flag_key: new-checkout-flow
+        previous_state: true
+        new_state: false
+        provider_metadata:
+          flag_id: flag_123456
+          environment: production
+          updated_at: '2025-10-26T14:32:01.234Z'
+
+    flagNotFound:
+      summary: Flag not found
+      value:
+        success: false
+        flag_key: invalid-flag
+        previous_state: false
+        new_state: false
+        error: "Feature flag 'invalid-flag' not found"
+
+    invalidApiKey:
+      summary: Invalid API key
+      value:
+        error: Invalid API key
+        code: INVALID_API_KEY
+
+security:
+  - BearerAuth: []
+
+externalDocs:
+  description: PathCanary Partner Integration Guide
+  url: https://docs.pathcanary.com/partners

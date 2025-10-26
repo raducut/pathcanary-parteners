@@ -1,0 +1,22 @@
+{
+  "name": "@pathcanary/partner-sdk",
+  "version": "1.0.0",
+  "description": "PathCanary Partner SDK for testing feature flag integrations",
+  "main": "client.ts",
+  "scripts": {
+    "test": "echo \"Error: no test command specified\" && exit 1"
+  },
+  "keywords": [
+    "pathcanary",
+    "partner",
+    "feature-flags",
+    "rollback",
+    "monitoring"
+  ],
+  "author": "PathCanary",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/raducut/pathcanary-parteners.git"
+  }
+}
